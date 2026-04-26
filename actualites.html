@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Actualités — HBC Luçon Admin</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="sidebar-logo">
+        <div class="logo-badge-sm">HBC</div>
+        <span>Administration</span>
+      </div>
+      <nav class="sidebar-nav">
+        <a href="dashboard.html" class="nav-item">📊 Tableau de bord</a>
+        <a href="actualites.html" class="nav-item active">📰 Actualités</a>
+        <a href="matchs.html" class="nav-item">🤾 Matchs</a>
+        <a href="classements.html" class="nav-item">🏆 Classements</a>
+        <a href="equipes.html" class="nav-item">👥 Équipes</a>
+        <a href="partenaires.html" class="nav-item">🤝 Partenaires</a>
+        <a href="licencies.html" class="nav-item">👤 Licenciés</a>
+      </nav>
+      <div class="sidebar-footer">
+        <span id="user-email"></span>
+        <button class="btn btn-outline btn-sm" onclick="logout()">Déconnexion</button>
+      </div>
+    </aside>
+
+    <main class="main">
+      <div class="page-header">
+        <h1>📰 Actualités</h1>
+        <button class="btn btn-primary" onclick="ouvrirModal()">+ Nouvelle actualité</button>
+      </div>
+
+      <div class="table-wrap">
+        <table class="table" id="table-actualites">
+          <thead>
+            <tr>
+              <th>Titre</th>
+              <th>Catégorie</th>
+              <th>Date</th>
+              <th>Statut</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="tbody-actualites">
+            <tr><td colspan="5" class="loading">Chargement...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </main>
+  </div>
+
+  <!-- MODAL -->
+  <div class="modal-overlay hidden" id="modal">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 id="modal-title">Nouvelle actualité</h2>
+        <button class="modal-close" onclick="fermerModal()">✕</button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="edit-id" />
+        <div class="field">
+          <label>Titre *</label>
+          <input type="text" id="field-titre" placeholder="Titre de l'article" />
+        </div>
+        <div class="field">
+          <label>Catégorie *</label>
+          <select id="field-categorie">
+            <option value="match">Match</option>
+            <option value="evenement">Événement</option>
+            <option value="club">Club</option>
+            <option value="general">Général</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Contenu *</label>
+          <textarea id="field-contenu" rows="6" placeholder="Rédigez votre article..."></textarea>
+        </div>
+        <div class="field">
+          <label>Statut</label>
+          <select id="field-statut">
+            <option value="publie">Publié</option>
+            <option value="brouillon">Brouillon</option>
+          </select>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" onclick="fermerModal()">Annuler</button>
+        <button class="btn btn-primary" onclick="sauvegarder()">Enregistrer</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/supabase.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/utils.js"></script>
+  <script>
+    requireAuth();
+    let actualites = [];
+
+    async function load() {
+      const { data, error } = await supabaseClient
+        .from('actualites')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) { showToast('Erreur de chargement', 'error'); return; }
+      actualites = data || [];
+      renderTable();
+    }
+
+    function renderTable() {
+      const tbody = document.getElementById('tbody-actualites');
+      if (actualites.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" class="empty">Aucune actualité</td></tr>';
+        return;
+      }
+      tbody.innerHTML = actualites.map(a => `
+        <tr>
+          <td><strong>${escHtml(a.titre)}</strong></td>
+          <td><span class="badge badge-${a.categorie}">${a.categorie}</span></td>
+          <td>${formatDate(a.created_at)}</td>
+          <td><span class="badge ${a.statut === 'publie' ? 'badge-success' : 'badge-gray'}">${a.statut}</span></td>
+          <td class="actions">
+            <button class="btn btn-sm btn-outline" onclick="editer('${a.id}')">✏️ Modifier</button>
+            <button class="btn btn-sm btn-danger" onclick="supprimer('${a.id}')">🗑 Supprimer</button>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    function ouvrirModal(id = null) {
+      document.getElementById('edit-id').value = '';
+      document.getElementById('field-titre').value = '';
+      document.getElementById('field-contenu').value = '';
+      document.getElementById('field-categorie').value = 'general';
+      document.getElementById('field-statut').value = 'publie';
+      document.getElementById('modal-title').textContent = 'Nouvelle actualité';
+      document.getElementById('modal').classList.remove('hidden');
+    }
+
+    function editer(id) {
+      const a = actualites.find(x => x.id === id);
+      if (!a) return;
+      document.getElementById('edit-id').value = a.id;
+      document.getElementById('field-titre').value = a.titre;
+      document.getElementById('field-contenu').value = a.contenu;
+      document.getElementById('field-categorie').value = a.categorie;
+      document.getElementById('field-statut').value = a.statut;
+      document.getElementById('modal-title').textContent = 'Modifier l\'actualité';
+      document.getElementById('modal').classList.remove('hidden');
+    }
+
+    function fermerModal() {
+      document.getElementById('modal').classList.add('hidden');
+    }
+
+    async function sauvegarder() {
+      const id = document.getElementById('edit-id').value;
+      const titre = document.getElementById('field-titre').value.trim();
+      const contenu = document.getElementById('field-contenu').value.trim();
+      const categorie = document.getElementById('field-categorie').value;
+      const statut = document.getElementById('field-statut').value;
+
+      if (!titre || !contenu) { showToast('Titre et contenu obligatoires', 'error'); return; }
+
+      const payload = { titre, contenu, categorie, statut };
+
+      const { error } = id
+        ? await supabaseClient.from('actualites').update(payload).eq('id', id)
+        : await supabaseClient.from('actualites').insert(payload);
+
+      if (error) { showToast('Erreur : ' + error.message, 'error'); return; }
+
+      showToast(id ? 'Actualité modifiée !' : 'Actualité créée !');
+      fermerModal();
+      load();
+    }
+
+    async function supprimer(id) {
+      if (!confirm('Supprimer cette actualité ?')) return;
+      const { error } = await supabaseClient.from('actualites').update({ statut: 'supprime' }).eq('id', id);
+      if (error) { showToast('Erreur', 'error'); return; }
+      showToast('Actualité supprimée');
+      load();
+    }
+
+    load();
+  </script>
+</body>
+</html>

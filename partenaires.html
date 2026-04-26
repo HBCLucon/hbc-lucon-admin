@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Partenaires — HBC Luçon Admin</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="sidebar-logo"><div class="logo-badge-sm">HBC</div><span>Administration</span></div>
+      <nav class="sidebar-nav">
+        <a href="dashboard.html" class="nav-item">📊 Tableau de bord</a>
+        <a href="actualites.html" class="nav-item">📰 Actualités</a>
+        <a href="matchs.html" class="nav-item">🤾 Matchs</a>
+        <a href="classements.html" class="nav-item">🏆 Classements</a>
+        <a href="equipes.html" class="nav-item">👥 Équipes</a>
+        <a href="partenaires.html" class="nav-item active">🤝 Partenaires</a>
+        <a href="licencies.html" class="nav-item">👤 Licenciés</a>
+      </nav>
+      <div class="sidebar-footer">
+        <span id="user-email"></span>
+        <button class="btn btn-outline btn-sm" onclick="logout()">Déconnexion</button>
+      </div>
+    </aside>
+
+    <main class="main">
+      <div class="page-header">
+        <h1>🤝 Partenaires</h1>
+        <button class="btn btn-primary" onclick="ouvrirModal()">+ Nouveau partenaire</button>
+      </div>
+      <div class="table-wrap">
+        <table class="table">
+          <thead><tr><th>Ordre</th><th>Nom</th><th>Description</th><th>Site web</th><th>Actif</th><th>Actions</th></tr></thead>
+          <tbody id="tbody-partenaires"><tr><td colspan="6" class="loading">Chargement...</td></tr></tbody>
+        </table>
+      </div>
+    </main>
+  </div>
+
+  <div class="modal-overlay hidden" id="modal">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 id="modal-title">Nouveau partenaire</h2>
+        <button class="modal-close" onclick="fermerModal()">✕</button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="edit-id" />
+        <div class="field"><label>Nom *</label><input type="text" id="field-nom" placeholder="Nom du partenaire" /></div>
+        <div class="field"><label>Description</label><textarea id="field-desc" rows="3" placeholder="Courte description..."></textarea></div>
+        <div class="field"><label>Site web</label><input type="url" id="field-site" placeholder="https://..." /></div>
+        <div class="field"><label>Ordre d'affichage</label><input type="number" id="field-ordre" placeholder="1" /></div>
+        <div class="field">
+          <label>Actif</label>
+          <select id="field-actif">
+            <option value="true">Oui</option>
+            <option value="false">Non</option>
+          </select>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" onclick="fermerModal()">Annuler</button>
+        <button class="btn btn-primary" onclick="sauvegarder()">Enregistrer</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/supabase.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/utils.js"></script>
+  <script>
+    requireAuth();
+    let items = [];
+
+    async function load() {
+      const { data } = await supabaseClient.from('partenaires').select('*').order('ordre');
+      items = data || [];
+      const tbody = document.getElementById('tbody-partenaires');
+      if (!items.length) { tbody.innerHTML = '<tr><td colspan="6" class="empty">Aucun partenaire</td></tr>'; return; }
+      tbody.innerHTML = items.map(p => `
+        <tr>
+          <td>${p.ordre ?? '—'}</td>
+          <td><strong>${escHtml(p.nom)}</strong></td>
+          <td>${escHtml(p.description || '—')}</td>
+          <td>${p.site_web ? `<a href="${escHtml(p.site_web)}" target="_blank">Voir</a>` : '—'}</td>
+          <td><span class="badge ${p.actif ? 'badge-success' : 'badge-gray'}">${p.actif ? 'Oui' : 'Non'}</span></td>
+          <td class="actions">
+            <button class="btn btn-sm btn-outline" onclick="editer('${p.id}')">✏️</button>
+            <button class="btn btn-sm btn-danger" onclick="supprimer('${p.id}')">🗑</button>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    function ouvrirModal() {
+      ['edit-id','field-nom','field-desc','field-site','field-ordre'].forEach(id => document.getElementById(id).value = '');
+      document.getElementById('field-actif').value = 'true';
+      document.getElementById('modal-title').textContent = 'Nouveau partenaire';
+      document.getElementById('modal').classList.remove('hidden');
+    }
+
+    function editer(id) {
+      const p = items.find(x => x.id === id);
+      if (!p) return;
+      document.getElementById('edit-id').value = p.id;
+      document.getElementById('field-nom').value = p.nom;
+      document.getElementById('field-desc').value = p.description || '';
+      document.getElementById('field-site').value = p.site_web || '';
+      document.getElementById('field-ordre').value = p.ordre || '';
+      document.getElementById('field-actif').value = p.actif ? 'true' : 'false';
+      document.getElementById('modal-title').textContent = 'Modifier le partenaire';
+      document.getElementById('modal').classList.remove('hidden');
+    }
+
+    function fermerModal() { document.getElementById('modal').classList.add('hidden'); }
+
+    async function sauvegarder() {
+      const id = document.getElementById('edit-id').value;
+      const nom = document.getElementById('field-nom').value.trim();
+      if (!nom) { showToast('Nom obligatoire', 'error'); return; }
+      const payload = {
+        nom,
+        description: document.getElementById('field-desc').value.trim(),
+        site_web: document.getElementById('field-site').value.trim(),
+        ordre: parseInt(document.getElementById('field-ordre').value) || 99,
+        actif: document.getElementById('field-actif').value === 'true',
+      };
+      const { error } = id
+        ? await supabaseClient.from('partenaires').update(payload).eq('id', id)
+        : await supabaseClient.from('partenaires').insert(payload);
+      if (error) { showToast('Erreur : ' + error.message, 'error'); return; }
+      showToast(id ? 'Partenaire modifié !' : 'Partenaire créé !');
+      fermerModal();
+      load();
+    }
+
+    async function supprimer(id) {
+      if (!confirm('Supprimer ce partenaire ?')) return;
+      await supabaseClient.from('partenaires').delete().eq('id', id);
+      showToast('Partenaire supprimé');
+      load();
+    }
+
+    load();
+  </script>
+</body>
+</html>

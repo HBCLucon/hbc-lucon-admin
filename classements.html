@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Classements — HBC Luçon Admin</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="sidebar-logo"><div class="logo-badge-sm">HBC</div><span>Administration</span></div>
+      <nav class="sidebar-nav">
+        <a href="dashboard.html" class="nav-item">📊 Tableau de bord</a>
+        <a href="actualites.html" class="nav-item">📰 Actualités</a>
+        <a href="matchs.html" class="nav-item">🤾 Matchs</a>
+        <a href="classements.html" class="nav-item active">🏆 Classements</a>
+        <a href="equipes.html" class="nav-item">👥 Équipes</a>
+        <a href="partenaires.html" class="nav-item">🤝 Partenaires</a>
+        <a href="licencies.html" class="nav-item">👤 Licenciés</a>
+      </nav>
+      <div class="sidebar-footer">
+        <span id="user-email"></span>
+        <button class="btn btn-outline btn-sm" onclick="logout()">Déconnexion</button>
+      </div>
+    </aside>
+
+    <main class="main">
+      <div class="page-header">
+        <h1>🏆 Classements</h1>
+        <button class="btn btn-primary" onclick="ouvrirModal()">+ Ajouter une équipe</button>
+      </div>
+
+      <div class="table-wrap">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>#</th><th>Équipe</th><th>Catégorie</th>
+              <th>J</th><th>V</th><th>N</th><th>D</th><th>Pts</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="tbody-classements">
+            <tr><td colspan="9" class="loading">Chargement...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </main>
+  </div>
+
+  <div class="modal-overlay hidden" id="modal">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 id="modal-title">Ajouter une équipe</h2>
+        <button class="modal-close" onclick="fermerModal()">✕</button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="edit-id" />
+        <div class="form-grid">
+          <div class="field"><label>Rang *</label><input type="number" id="field-rang" placeholder="1" /></div>
+          <div class="field"><label>Nom de l'équipe *</label><input type="text" id="field-nom" placeholder="HBC Luçon" /></div>
+          <div class="field"><label>Catégorie *</label><input type="text" id="field-categorie" placeholder="Seniors Masculins" /></div>
+          <div class="field"><label>Matchs joués</label><input type="number" id="field-joues" placeholder="0" /></div>
+          <div class="field"><label>Victoires</label><input type="number" id="field-victoires" placeholder="0" /></div>
+          <div class="field"><label>Nuls</label><input type="number" id="field-nuls" placeholder="0" /></div>
+          <div class="field"><label>Défaites</label><input type="number" id="field-defaites" placeholder="0" /></div>
+          <div class="field"><label>Points</label><input type="number" id="field-points" placeholder="0" /></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" onclick="fermerModal()">Annuler</button>
+        <button class="btn btn-primary" onclick="sauvegarder()">Enregistrer</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/supabase.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/utils.js"></script>
+  <script>
+    requireAuth();
+    let items = [];
+
+    async function load() {
+      const { data } = await supabaseClient.from('classements').select('*').order('rang', { ascending: true });
+      items = data || [];
+      const tbody = document.getElementById('tbody-classements');
+      if (!items.length) { tbody.innerHTML = '<tr><td colspan="9" class="empty">Aucune donnée</td></tr>'; return; }
+      tbody.innerHTML = items.map(c => `
+        <tr>
+          <td><strong>${c.rang}</strong></td>
+          <td>${escHtml(c.equipe_nom)}</td>
+          <td><span class="badge badge-gray">${escHtml(c.categorie)}</span></td>
+          <td>${c.matchs_joues ?? 0}</td>
+          <td>${c.victoires ?? 0}</td>
+          <td>${c.nuls ?? 0}</td>
+          <td>${c.defaites ?? 0}</td>
+          <td><strong>${c.points ?? 0}</strong></td>
+          <td class="actions">
+            <button class="btn btn-sm btn-outline" onclick="editer('${c.id}')">✏️</button>
+            <button class="btn btn-sm btn-danger" onclick="supprimer('${c.id}')">🗑</button>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    function ouvrirModal() {
+      ['edit-id','field-rang','field-nom','field-categorie','field-joues','field-victoires','field-nuls','field-defaites','field-points']
+        .forEach(id => document.getElementById(id).value = '');
+      document.getElementById('modal-title').textContent = 'Ajouter une équipe';
+      document.getElementById('modal').classList.remove('hidden');
+    }
+
+    function editer(id) {
+      const c = items.find(x => x.id === id);
+      if (!c) return;
+      document.getElementById('edit-id').value = c.id;
+      document.getElementById('field-rang').value = c.rang;
+      document.getElementById('field-nom').value = c.equipe_nom;
+      document.getElementById('field-categorie').value = c.categorie;
+      document.getElementById('field-joues').value = c.matchs_joues ?? 0;
+      document.getElementById('field-victoires').value = c.victoires ?? 0;
+      document.getElementById('field-nuls').value = c.nuls ?? 0;
+      document.getElementById('field-defaites').value = c.defaites ?? 0;
+      document.getElementById('field-points').value = c.points ?? 0;
+      document.getElementById('modal-title').textContent = 'Modifier le classement';
+      document.getElementById('modal').classList.remove('hidden');
+    }
+
+    function fermerModal() { document.getElementById('modal').classList.add('hidden'); }
+
+    async function sauvegarder() {
+      const id = document.getElementById('edit-id').value;
+      const payload = {
+        rang: parseInt(document.getElementById('field-rang').value),
+        equipe_nom: document.getElementById('field-nom').value.trim(),
+        categorie: document.getElementById('field-categorie').value.trim(),
+        matchs_joues: parseInt(document.getElementById('field-joues').value) || 0,
+        victoires: parseInt(document.getElementById('field-victoires').value) || 0,
+        nuls: parseInt(document.getElementById('field-nuls').value) || 0,
+        defaites: parseInt(document.getElementById('field-defaites').value) || 0,
+        points: parseInt(document.getElementById('field-points').value) || 0,
+      };
+      if (!payload.equipe_nom || !payload.categorie) { showToast('Champs obligatoires manquants', 'error'); return; }
+      const { error } = id
+        ? await supabaseClient.from('classements').update(payload).eq('id', id)
+        : await supabaseClient.from('classements').insert(payload);
+      if (error) { showToast('Erreur : ' + error.message, 'error'); return; }
+      showToast(id ? 'Classement modifié !' : 'Équipe ajoutée !');
+      fermerModal();
+      load();
+    }
+
+    async function supprimer(id) {
+      if (!confirm('Supprimer cette entrée ?')) return;
+      await supabaseClient.from('classements').delete().eq('id', id);
+      showToast('Supprimé');
+      load();
+    }
+
+    load();
+  </script>
+</body>
+</html>

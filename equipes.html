@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Équipes — HBC Luçon Admin</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="sidebar-logo"><div class="logo-badge-sm">HBC</div><span>Administration</span></div>
+      <nav class="sidebar-nav">
+        <a href="dashboard.html" class="nav-item">📊 Tableau de bord</a>
+        <a href="actualites.html" class="nav-item">📰 Actualités</a>
+        <a href="matchs.html" class="nav-item">🤾 Matchs</a>
+        <a href="classements.html" class="nav-item">🏆 Classements</a>
+        <a href="equipes.html" class="nav-item active">👥 Équipes</a>
+        <a href="partenaires.html" class="nav-item">🤝 Partenaires</a>
+        <a href="licencies.html" class="nav-item">👤 Licenciés</a>
+      </nav>
+      <div class="sidebar-footer">
+        <span id="user-email"></span>
+        <button class="btn btn-outline btn-sm" onclick="logout()">Déconnexion</button>
+      </div>
+    </aside>
+
+    <main class="main">
+      <div class="page-header">
+        <h1>👥 Équipes</h1>
+        <button class="btn btn-primary" onclick="ouvrirModal()">+ Nouvelle équipe</button>
+      </div>
+      <div class="table-wrap">
+        <table class="table">
+          <thead><tr><th>Nom</th><th>Catégorie</th><th>Entraîneur</th><th>Actions</th></tr></thead>
+          <tbody id="tbody-equipes"><tr><td colspan="4" class="loading">Chargement...</td></tr></tbody>
+        </table>
+      </div>
+    </main>
+  </div>
+
+  <div class="modal-overlay hidden" id="modal">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 id="modal-title">Nouvelle équipe</h2>
+        <button class="modal-close" onclick="fermerModal()">✕</button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="edit-id" />
+        <div class="field"><label>Nom *</label><input type="text" id="field-nom" placeholder="HBC Luçon Seniors M" /></div>
+        <div class="field"><label>Catégorie *</label><input type="text" id="field-categorie" placeholder="Seniors Masculins" /></div>
+        <div class="field"><label>Entraîneur</label><input type="text" id="field-entraineur" placeholder="Prénom Nom" /></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" onclick="fermerModal()">Annuler</button>
+        <button class="btn btn-primary" onclick="sauvegarder()">Enregistrer</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/supabase.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/utils.js"></script>
+  <script>
+    requireAuth();
+    let items = [];
+
+    async function load() {
+      const { data } = await supabaseClient.from('equipes').select('*').order('categorie');
+      items = data || [];
+      const tbody = document.getElementById('tbody-equipes');
+      if (!items.length) { tbody.innerHTML = '<tr><td colspan="4" class="empty">Aucune équipe</td></tr>'; return; }
+      tbody.innerHTML = items.map(e => `
+        <tr>
+          <td><strong>${escHtml(e.nom)}</strong></td>
+          <td><span class="badge badge-gray">${escHtml(e.categorie)}</span></td>
+          <td>${escHtml(e.entraineur || '—')}</td>
+          <td class="actions">
+            <button class="btn btn-sm btn-outline" onclick="editer('${e.id}')">✏️</button>
+            <button class="btn btn-sm btn-danger" onclick="supprimer('${e.id}')">🗑</button>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    function ouvrirModal() {
+      ['edit-id','field-nom','field-categorie','field-entraineur'].forEach(id => document.getElementById(id).value = '');
+      document.getElementById('modal-title').textContent = 'Nouvelle équipe';
+      document.getElementById('modal').classList.remove('hidden');
+    }
+
+    function editer(id) {
+      const e = items.find(x => x.id === id);
+      if (!e) return;
+      document.getElementById('edit-id').value = e.id;
+      document.getElementById('field-nom').value = e.nom;
+      document.getElementById('field-categorie').value = e.categorie;
+      document.getElementById('field-entraineur').value = e.entraineur || '';
+      document.getElementById('modal-title').textContent = 'Modifier l\'équipe';
+      document.getElementById('modal').classList.remove('hidden');
+    }
+
+    function fermerModal() { document.getElementById('modal').classList.add('hidden'); }
+
+    async function sauvegarder() {
+      const id = document.getElementById('edit-id').value;
+      const nom = document.getElementById('field-nom').value.trim();
+      const categorie = document.getElementById('field-categorie').value.trim();
+      const entraineur = document.getElementById('field-entraineur').value.trim();
+      if (!nom || !categorie) { showToast('Nom et catégorie obligatoires', 'error'); return; }
+      const payload = { nom, categorie, entraineur };
+      const { error } = id
+        ? await supabaseClient.from('equipes').update(payload).eq('id', id)
+        : await supabaseClient.from('equipes').insert(payload);
+      if (error) { showToast('Erreur : ' + error.message, 'error'); return; }
+      showToast(id ? 'Équipe modifiée !' : 'Équipe créée !');
+      fermerModal();
+      load();
+    }
+
+    async function supprimer(id) {
+      if (!confirm('Supprimer cette équipe ?')) return;
+      await supabaseClient.from('equipes').delete().eq('id', id);
+      showToast('Équipe supprimée');
+      load();
+    }
+
+    load();
+  </script>
+</body>
+</html>

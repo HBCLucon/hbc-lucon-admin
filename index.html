@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>HBC Luçon — Administration</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body class="login-page">
+
+  <div class="login-wrap">
+    <div class="login-logo">
+      <div class="logo-badge">HBC</div>
+      <h1>HBC Luçon</h1>
+      <p>Espace Administration</p>
+    </div>
+
+    <div class="login-card">
+      <h2>Connexion</h2>
+      <div id="error-msg" class="error-msg hidden"></div>
+
+      <div class="field">
+        <label>Email</label>
+        <input type="email" id="email" placeholder="votre@email.com" />
+      </div>
+      <div class="field">
+        <label>Mot de passe</label>
+        <input type="password" id="password" placeholder="••••••••" />
+      </div>
+      <button class="btn btn-primary btn-full" onclick="login()">
+        Se connecter
+      </button>
+    </div>
+
+    <p class="login-footer">
+      Accès réservé aux superviseurs et dirigeants du HBC Luçon
+    </p>
+  </div>
+
+  <script src="js/supabase.js"></script>
+  <script src="js/auth.js"></script>
+  <script>
+    // Rediriger si déjà connecté
+    checkAuth().then(user => {
+      if (user) window.location.href = 'dashboard.html';
+    });
+
+    async function login() {
+      const email = document.getElementById('email').value.trim();
+      const password = document.getElementById('password').value;
+      const errorMsg = document.getElementById('error-msg');
+      const btn = document.querySelector('.btn-primary');
+
+      if (!email || !password) {
+        showError('Veuillez remplir tous les champs.');
+        return;
+      }
+
+      btn.textContent = 'Connexion...';
+      btn.disabled = true;
+
+      try {
+        const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+        if (error) throw error;
+
+        // Vérifier le rôle
+        const { data: profil, error: profilError } = await supabaseClient
+          .from('profils')
+          .select('fonction')
+          .eq('id', data.user.id)
+          .single();
+
+        if (profilError || !profil) throw new Error('Profil introuvable.');
+
+        if (!['superviseur', 'dirigeant'].includes(profil.fonction)) {
+          await supabaseClient.auth.signOut();
+          throw new Error('Accès refusé. Vous devez être superviseur ou dirigeant.');
+        }
+
+        window.location.href = 'dashboard.html';
+      } catch (err) {
+        showError(err.message);
+        btn.textContent = 'Se connecter';
+        btn.disabled = false;
+      }
+    }
+
+    function showError(msg) {
+      const el = document.getElementById('error-msg');
+      el.textContent = msg;
+      el.classList.remove('hidden');
+    }
+
+    // Connexion avec Entrée
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Enter') login();
+    });
+  </script>
+</body>
+</html>

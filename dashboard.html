@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tableau de bord — HBC Luçon Admin</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+  <div class="layout">
+    <!-- SIDEBAR -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-logo">
+        <div class="logo-badge-sm">HBC</div>
+        <span>Administration</span>
+      </div>
+      <nav class="sidebar-nav">
+        <a href="dashboard.html" class="nav-item active">📊 Tableau de bord</a>
+        <a href="actualites.html" class="nav-item">📰 Actualités</a>
+        <a href="matchs.html" class="nav-item">🤾 Matchs</a>
+        <a href="classements.html" class="nav-item">🏆 Classements</a>
+        <a href="equipes.html" class="nav-item">👥 Équipes</a>
+        <a href="partenaires.html" class="nav-item">🤝 Partenaires</a>
+        <a href="licencies.html" class="nav-item">👤 Licenciés</a>
+      </nav>
+      <div class="sidebar-footer">
+        <span id="user-email"></span>
+        <button class="btn btn-outline btn-sm" onclick="logout()">Déconnexion</button>
+      </div>
+    </aside>
+
+    <!-- CONTENU -->
+    <main class="main">
+      <div class="page-header">
+        <h1>Tableau de bord</h1>
+        <span id="date-now"></span>
+      </div>
+
+      <!-- STATS -->
+      <div class="stats-grid" id="stats-grid">
+        <div class="stat-card">
+          <div class="stat-icon">📰</div>
+          <div class="stat-info">
+            <div class="stat-value" id="stat-actualites">—</div>
+            <div class="stat-label">Actualités publiées</div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon">🤾</div>
+          <div class="stat-info">
+            <div class="stat-value" id="stat-matchs">—</div>
+            <div class="stat-label">Matchs à venir</div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon">👤</div>
+          <div class="stat-info">
+            <div class="stat-value" id="stat-licencies">—</div>
+            <div class="stat-label">Licenciés actifs</div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon">👥</div>
+          <div class="stat-info">
+            <div class="stat-value" id="stat-equipes">—</div>
+            <div class="stat-label">Équipes</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ACCÈS RAPIDES -->
+      <div class="section-title">Accès rapides</div>
+      <div class="quick-grid">
+        <a href="actualites.html" class="quick-card">
+          <span class="quick-icon">📰</span>
+          <span class="quick-label">Gérer les actualités</span>
+          <span class="quick-arrow">›</span>
+        </a>
+        <a href="matchs.html" class="quick-card">
+          <span class="quick-icon">🤾</span>
+          <span class="quick-label">Gérer les matchs</span>
+          <span class="quick-arrow">›</span>
+        </a>
+        <a href="classements.html" class="quick-card">
+          <span class="quick-icon">🏆</span>
+          <span class="quick-label">Saisir les classements</span>
+          <span class="quick-arrow">›</span>
+        </a>
+        <a href="equipes.html" class="quick-card">
+          <span class="quick-icon">👥</span>
+          <span class="quick-label">Gérer les équipes</span>
+          <span class="quick-arrow">›</span>
+        </a>
+        <a href="partenaires.html" class="quick-card">
+          <span class="quick-icon">🤝</span>
+          <span class="quick-label">Gérer les partenaires</span>
+          <span class="quick-arrow">›</span>
+        </a>
+        <a href="licencies.html" class="quick-card">
+          <span class="quick-icon">👤</span>
+          <span class="quick-label">Gérer les licenciés</span>
+          <span class="quick-arrow">›</span>
+        </a>
+      </div>
+    </main>
+  </div>
+
+  <script src="js/supabase.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/utils.js"></script>
+  <script>
+    requireAuth();
+
+    // Date
+    document.getElementById('date-now').textContent = new Date().toLocaleDateString('fr-FR', {
+      weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
+    });
+
+    // Stats
+    async function loadStats() {
+      const [actualites, matchs, licencies, equipes] = await Promise.all([
+        supabaseClient.from('actualites').select('id', { count: 'exact' }).eq('statut', 'publie'),
+        supabaseClient.from('matchs').select('id', { count: 'exact' }).eq('statut', 'a_venir'),
+        supabaseClient.from('profils').select('id', { count: 'exact' }).eq('actif', true),
+        supabaseClient.from('equipes').select('id', { count: 'exact' }),
+      ]);
+      document.getElementById('stat-actualites').textContent = actualites.count ?? 0;
+      document.getElementById('stat-matchs').textContent = matchs.count ?? 0;
+      document.getElementById('stat-licencies').textContent = licencies.count ?? 0;
+      document.getElementById('stat-equipes').textContent = equipes.count ?? 0;
+    }
+
+    loadStats();
+  </script>
+</body>
+</html>

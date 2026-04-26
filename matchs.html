@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Matchs — HBC Luçon Admin</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="sidebar-logo">
+        <div class="logo-badge-sm">HBC</div>
+        <span>Administration</span>
+      </div>
+      <nav class="sidebar-nav">
+        <a href="dashboard.html" class="nav-item">📊 Tableau de bord</a>
+        <a href="actualites.html" class="nav-item">📰 Actualités</a>
+        <a href="matchs.html" class="nav-item active">🤾 Matchs</a>
+        <a href="classements.html" class="nav-item">🏆 Classements</a>
+        <a href="equipes.html" class="nav-item">👥 Équipes</a>
+        <a href="partenaires.html" class="nav-item">🤝 Partenaires</a>
+        <a href="licencies.html" class="nav-item">👤 Licenciés</a>
+      </nav>
+      <div class="sidebar-footer">
+        <span id="user-email"></span>
+        <button class="btn btn-outline btn-sm" onclick="logout()">Déconnexion</button>
+      </div>
+    </aside>
+
+    <main class="main">
+      <div class="page-header">
+        <h1>🤾 Matchs</h1>
+        <button class="btn btn-primary" onclick="ouvrirModal()">+ Nouveau match</button>
+      </div>
+
+      <div class="tabs">
+        <button class="tab active" onclick="filtrer('a_venir', this)">À venir</button>
+        <button class="tab" onclick="filtrer('joue', this)">Résultats</button>
+        <button class="tab" onclick="filtrer('tous', this)">Tous</button>
+      </div>
+
+      <div class="table-wrap">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Équipe</th>
+              <th>Adversaire</th>
+              <th>Lieu</th>
+              <th>Score</th>
+              <th>Statut</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="tbody-matchs">
+            <tr><td colspan="7" class="loading">Chargement...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </main>
+  </div>
+
+  <!-- MODAL -->
+  <div class="modal-overlay hidden" id="modal">
+    <div class="modal modal-lg">
+      <div class="modal-header">
+        <h2 id="modal-title">Nouveau match</h2>
+        <button class="modal-close" onclick="fermerModal()">✕</button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="edit-id" />
+        <div class="form-grid">
+          <div class="field">
+            <label>Notre équipe *</label>
+            <input type="text" id="field-equipe" placeholder="HBC Luçon Seniors M" />
+          </div>
+          <div class="field">
+            <label>Adversaire *</label>
+            <input type="text" id="field-adversaire" placeholder="La Roche HB" />
+          </div>
+          <div class="field">
+            <label>Date et heure *</label>
+            <input type="datetime-local" id="field-date" />
+          </div>
+          <div class="field">
+            <label>Lieu *</label>
+            <input type="text" id="field-lieu" placeholder="Salle Kérentrec" />
+          </div>
+          <div class="field">
+            <label>Compétition</label>
+            <input type="text" id="field-competition" placeholder="Championnat Départemental" />
+          </div>
+          <div class="field">
+            <label>Journée</label>
+            <input type="number" id="field-journee" placeholder="15" />
+          </div>
+          <div class="field">
+            <label>Réception</label>
+            <select id="field-domicile">
+              <option value="true">🏠 Domicile</option>
+              <option value="false">✈️ Extérieur</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Statut</label>
+            <select id="field-statut">
+              <option value="a_venir">À venir</option>
+              <option value="joue">Joué</option>
+            </select>
+          </div>
+          <div class="field" id="score-home-wrap">
+            <label>Score domicile</label>
+            <input type="number" id="field-score-home" placeholder="0" />
+          </div>
+          <div class="field" id="score-away-wrap">
+            <label>Score extérieur</label>
+            <input type="number" id="field-score-away" placeholder="0" />
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" onclick="fermerModal()">Annuler</button>
+        <button class="btn btn-primary" onclick="sauvegarder()">Enregistrer</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/supabase.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/utils.js"></script>
+  <script>
+    requireAuth();
+    let matchs = [];
+    let filtreActuel = 'a_venir';
+
+    async function load() {
+      let query = supabaseClient.from('matchs').select('*').order('date_match', { ascending: false });
+      if (filtreActuel !== 'tous') query = query.eq('statut', filtreActuel);
+      const { data, error } = await query;
+      if (error) { showToast('Erreur', 'error'); return; }
+      matchs = data || [];
+      renderTable();
+    }
+
+    function filtrer(statut, btn) {
+      filtreActuel = statut;
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      btn.classList.add('active');
+      load();
+    }
+
+    function renderTable() {
+      const tbody = document.getElementById('tbody-matchs');
+      if (matchs.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" class="empty">Aucun match</td></tr>';
+        return;
+      }
+      tbody.innerHTML = matchs.map(m => `
+        <tr>
+          <td>${formatDate(m.date_match)}</td>
+          <td>${escHtml(m.equipe_nom)}</td>
+          <td>${escHtml(m.adversaire)}</td>
+          <td>${escHtml(m.lieu || '—')}</td>
+          <td>${m.statut === 'joue' ? `<strong>${m.score_domicile} — ${m.score_exterieur}</strong>` : '—'}</td>
+          <td><span class="badge ${m.statut === 'a_venir' ? 'badge-blue' : 'badge-success'}">${m.statut === 'a_venir' ? 'À venir' : 'Joué'}</span></td>
+          <td class="actions">
+            <button class="btn btn-sm btn-outline" onclick="editer('${m.id}')">✏️</button>
+            <button class="btn btn-sm btn-danger" onclick="supprimer('${m.id}')">🗑</button>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    function ouvrirModal() {
+      document.getElementById('edit-id').value = '';
+      document.getElementById('field-equipe').value = '';
+      document.getElementById('field-adversaire').value = '';
+      document.getElementById('field-date').value = '';
+      document.getElementById('field-lieu').value = '';
+      document.getElementById('field-competition').value = '';
+      document.getElementById('field-journee').value = '';
+      document.getElementById('field-domicile').value = 'true';
+      document.getElementById('field-statut').value = 'a_venir';
+      document.getElementById('field-score-home').value = '';
+      document.getElementById('field-score-away').value = '';
+      document.getElementById('modal-title').textContent = 'Nouveau match';
+      document.getElementById('modal').classList.remove('hidden');
+    }
+
+    function editer(id) {
+      const m = matchs.find(x => x.id === id);
+      if (!m) return;
+      document.getElementById('edit-id').value = m.id;
+      document.getElementById('field-equipe').value = m.equipe_nom;
+      document.getElementById('field-adversaire').value = m.adversaire;
+      document.getElementById('field-date').value = m.date_match ? m.date_match.slice(0, 16) : '';
+      document.getElementById('field-lieu').value = m.lieu || '';
+      document.getElementById('field-competition').value = m.competition || '';
+      document.getElementById('field-journee').value = m.journee || '';
+      document.getElementById('field-domicile').value = m.domicile ? 'true' : 'false';
+      document.getElementById('field-statut').value = m.statut;
+      document.getElementById('field-score-home').value = m.score_domicile ?? '';
+      document.getElementById('field-score-away').value = m.score_exterieur ?? '';
+      document.getElementById('modal-title').textContent = 'Modifier le match';
+      document.getElementById('modal').classList.remove('hidden');
+    }
+
+    function fermerModal() {
+      document.getElementById('modal').classList.add('hidden');
+    }
+
+    async function sauvegarder() {
+      const id = document.getElementById('edit-id').value;
+      const equipe_nom = document.getElementById('field-equipe').value.trim();
+      const adversaire = document.getElementById('field-adversaire').value.trim();
+      const date_match = document.getElementById('field-date').value;
+      const lieu = document.getElementById('field-lieu').value.trim();
+      const competition = document.getElementById('field-competition').value.trim();
+      const journee = document.getElementById('field-journee').value;
+      const domicile = document.getElementById('field-domicile').value === 'true';
+      const statut = document.getElementById('field-statut').value;
+      const score_domicile = document.getElementById('field-score-home').value;
+      const score_exterieur = document.getElementById('field-score-away').value;
+
+      if (!equipe_nom || !adversaire || !date_match || !lieu) {
+        showToast('Champs obligatoires manquants', 'error'); return;
+      }
+
+      const payload = {
+        equipe_nom, adversaire, date_match, lieu, competition,
+        journee: journee ? parseInt(journee) : null,
+        domicile, statut,
+        score_domicile: score_domicile !== '' ? parseInt(score_domicile) : null,
+        score_exterieur: score_exterieur !== '' ? parseInt(score_exterieur) : null,
+      };
+
+      const { error } = id
+        ? await supabaseClient.from('matchs').update(payload).eq('id', id)
+        : await supabaseClient.from('matchs').insert(payload);
+
+      if (error) { showToast('Erreur : ' + error.message, 'error'); return; }
+      showToast(id ? 'Match modifié !' : 'Match créé !');
+      fermerModal();
+      load();
+    }
+
+    async function supprimer(id) {
+      if (!confirm('Supprimer ce match ?')) return;
+      const { error } = await supabaseClient.from('matchs').delete().eq('id', id);
+      if (error) { showToast('Erreur', 'error'); return; }
+      showToast('Match supprimé');
+      load();
+    }
+
+    load();
+  </script>
+</body>
+</html>

@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Licenciés — HBC Luçon Admin</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="sidebar-logo"><div class="logo-badge-sm">HBC</div><span>Administration</span></div>
+      <nav class="sidebar-nav">
+        <a href="dashboard.html" class="nav-item">📊 Tableau de bord</a>
+        <a href="actualites.html" class="nav-item">📰 Actualités</a>
+        <a href="matchs.html" class="nav-item">🤾 Matchs</a>
+        <a href="classements.html" class="nav-item">🏆 Classements</a>
+        <a href="equipes.html" class="nav-item">👥 Équipes</a>
+        <a href="partenaires.html" class="nav-item">🤝 Partenaires</a>
+        <a href="licencies.html" class="nav-item active">👤 Licenciés</a>
+      </nav>
+      <div class="sidebar-footer">
+        <span id="user-email"></span>
+        <button class="btn btn-outline btn-sm" onclick="logout()">Déconnexion</button>
+      </div>
+    </aside>
+
+    <main class="main">
+      <div class="page-header">
+        <h1>👤 Licenciés</h1>
+        <div class="search-wrap">
+          <input type="text" id="search" placeholder="Rechercher..." oninput="filtrerListe()" />
+        </div>
+      </div>
+
+      <div class="table-wrap">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Nom</th><th>Prénom</th><th>N° Licence</th>
+              <th>Fonction</th><th>Statut</th><th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="tbody-licencies">
+            <tr><td colspan="6" class="loading">Chargement...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </main>
+  </div>
+
+  <!-- MODAL ÉDITION -->
+  <div class="modal-overlay hidden" id="modal">
+    <div class="modal">
+      <div class="modal-header">
+        <h2>Modifier le licencié</h2>
+        <button class="modal-close" onclick="fermerModal()">✕</button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="edit-id" />
+        <div class="field"><label>Nom</label><input type="text" id="field-nom" /></div>
+        <div class="field"><label>Prénom</label><input type="text" id="field-prenom" /></div>
+        <div class="field"><label>N° Licence</label><input type="text" id="field-licence" /></div>
+        <div class="field">
+          <label>Fonction</label>
+          <select id="field-fonction">
+            <option value="joueur">Joueur</option>
+            <option value="entraineur">Entraîneur</option>
+            <option value="dirigeant">Dirigeant</option>
+            <option value="superviseur">Superviseur</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Statut</label>
+          <select id="field-actif">
+            <option value="true">Actif</option>
+            <option value="false">Inactif</option>
+          </select>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" onclick="fermerModal()">Annuler</button>
+        <button class="btn btn-primary" onclick="sauvegarder()">Enregistrer</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/supabase.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/utils.js"></script>
+  <script>
+    requireAuth();
+    let items = [];
+    let filtered = [];
+
+    async function load() {
+      const { data } = await supabaseClient
+        .from('profils').select('*').order('nom', { ascending: true });
+      items = data || [];
+      filtered = items;
+      renderTable();
+    }
+
+    function filtrerListe() {
+      const q = document.getElementById('search').value.toLowerCase();
+      filtered = items.filter(l =>
+        l.nom?.toLowerCase().includes(q) ||
+        l.prenom?.toLowerCase().includes(q) ||
+        l.numero_licence?.toLowerCase().includes(q)
+      );
+      renderTable();
+    }
+
+    function renderTable() {
+      const tbody = document.getElementById('tbody-licencies');
+      if (!filtered.length) { tbody.innerHTML = '<tr><td colspan="6" class="empty">Aucun résultat</td></tr>'; return; }
+      tbody.innerHTML = filtered.map(l => `
+        <tr>
+          <td><strong>${escHtml(l.nom || '—')}</strong></td>
+          <td>${escHtml(l.prenom || '—')}</td>
+          <td>${escHtml(l.numero_licence || '—')}</td>
+          <td><span class="badge badge-role-${l.fonction}">${l.fonction}</span></td>
+          <td><span class="badge ${l.actif ? 'badge-success' : 'badge-gray'}">${l.actif ? 'Actif' : 'Inactif'}</span></td>
+          <td class="actions">
+            <button class="btn btn-sm btn-outline" onclick="editer('${l.id}')">✏️ Modifier</button>
+            <button class="btn btn-sm ${l.actif ? 'btn-danger' : 'btn-success'}" onclick="toggleActif('${l.id}', ${l.actif})">
+              ${l.actif ? '🚫 Désactiver' : '✅ Activer'}
+            </button>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    function editer(id) {
+      const l = items.find(x => x.id === id);
+      if (!l) return;
+      document.getElementById('edit-id').value = l.id;
+      document.getElementById('field-nom').value = l.nom || '';
+      document.getElementById('field-prenom').value = l.prenom || '';
+      document.getElementById('field-licence').value = l.numero_licence || '';
+      document.getElementById('field-fonction').value = l.fonction;
+      document.getElementById('field-actif').value = l.actif ? 'true' : 'false';
+      document.getElementById('modal').classList.remove('hidden');
+    }
+
+    function fermerModal() { document.getElementById('modal').classList.add('hidden'); }
+
+    async function sauvegarder() {
+      const id = document.getElementById('edit-id').value;
+      const payload = {
+        nom: document.getElementById('field-nom').value.trim(),
+        prenom: document.getElementById('field-prenom').value.trim(),
+        numero_licence: document.getElementById('field-licence').value.trim(),
+        fonction: document.getElementById('field-fonction').value,
+        actif: document.getElementById('field-actif').value === 'true',
+      };
+      const { error } = await supabaseClient.from('profils').update(payload).eq('id', id);
+      if (error) { showToast('Erreur : ' + error.message, 'error'); return; }
+      showToast('Licencié modifié !');
+      fermerModal();
+      load();
+    }
+
+    async function toggleActif(id, actuel) {
+      const msg = actuel ? 'Désactiver ce licencié ?' : 'Activer ce licencié ?';
+      if (!confirm(msg)) return;
+      await supabaseClient.from('profils').update({ actif: !actuel }).eq('id', id);
+      showToast(actuel ? 'Licencié désactivé' : 'Licencié activé');
+      load();
+    }
+
+    load();
+  </script>
+</body>
+</html>
