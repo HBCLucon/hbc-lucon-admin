@@ -27,35 +27,72 @@
     </aside>
 
     <main class="main">
+
+      <!-- ONGLETS -->
       <div class="page-header">
         <h1>👤 Licenciés</h1>
-        <div class="search-wrap">
-          <input type="text" id="search" placeholder="Rechercher..." oninput="filtrerListe()" />
+      </div>
+
+      <div class="tabs" style="margin-bottom: 24px;">
+        <button class="tab active" onclick="afficherOnglet('comptes', this)">Comptes créés</button>
+        <button class="tab" onclick="afficherOnglet('licences', this)">Licences autorisées</button>
+      </div>
+
+      <!-- ── ONGLET COMPTES ── -->
+      <div id="onglet-comptes">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+          <div class="search-wrap">
+            <input type="text" id="search" placeholder="Rechercher par nom, prénom, licence..." oninput="filtrerListe()" />
+          </div>
+        </div>
+
+        <div class="table-wrap">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Nom</th><th>Prénom</th><th>N° Licence</th>
+                <th>Fonction</th><th>Statut</th><th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="tbody-licencies">
+              <tr><td colspan="6" class="loading">Chargement...</td></tr>
+            </tbody>
+          </table>
         </div>
       </div>
 
-      <div class="table-wrap">
-        <table class="table">
-          <thead>
-            <tr>
-              <th>Nom</th><th>Prénom</th><th>N° Licence</th>
-              <th>Fonction</th><th>Statut</th><th>Actions</th>
-            </tr>
-          </thead>
-          <tbody id="tbody-licencies">
-            <tr><td colspan="6" class="loading">Chargement...</td></tr>
-          </tbody>
-        </table>
+      <!-- ── ONGLET LICENCES AUTORISÉES ── -->
+      <div id="onglet-licences" style="display:none;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+          <p style="color:#888; font-size:13px;">
+            Ajoutez ici les numéros de licence autorisés à créer un compte dans l'application.
+          </p>
+          <button class="btn btn-primary" onclick="ouvrirModalLicence()">+ Ajouter une licence</button>
+        </div>
+
+        <div class="table-wrap">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>N° Licence</th><th>Nom</th><th>Prénom</th><th>Utilisé</th><th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="tbody-licences">
+              <tr><td colspan="5" class="loading">Chargement...</td></tr>
+            </tbody>
+          </table>
+        </div>
       </div>
+
     </main>
   </div>
 
-  <!-- MODAL ÉDITION -->
-  <div class="modal-overlay hidden" id="modal">
+  <!-- MODAL ÉDITION LICENCIÉ -->
+  <div class="modal-overlay hidden" id="modal-licencie">
     <div class="modal">
       <div class="modal-header">
         <h2>Modifier le licencié</h2>
-        <button class="modal-close" onclick="fermerModal()">✕</button>
+        <button class="modal-close" onclick="fermerModal('modal-licencie')">✕</button>
       </div>
       <div class="modal-body">
         <input type="hidden" id="edit-id" />
@@ -80,8 +117,37 @@
         </div>
       </div>
       <div class="modal-footer">
-        <button class="btn btn-outline" onclick="fermerModal()">Annuler</button>
-        <button class="btn btn-primary" onclick="sauvegarder()">Enregistrer</button>
+        <button class="btn btn-outline" onclick="fermerModal('modal-licencie')">Annuler</button>
+        <button class="btn btn-primary" onclick="sauvegarderLicencie()">Enregistrer</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL AJOUT LICENCE AUTORISÉE -->
+  <div class="modal-overlay hidden" id="modal-licence">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 id="modal-licence-title">Ajouter une licence</h2>
+        <button class="modal-close" onclick="fermerModal('modal-licence')">✕</button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="licence-edit-id" />
+        <div class="field">
+          <label>N° Licence *</label>
+          <input type="text" id="licence-numero" placeholder="Ex: 0623456" />
+        </div>
+        <div class="field">
+          <label>Nom</label>
+          <input type="text" id="licence-nom" placeholder="Dupont" />
+        </div>
+        <div class="field">
+          <label>Prénom</label>
+          <input type="text" id="licence-prenom" placeholder="Pierre" />
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" onclick="fermerModal('modal-licence')">Annuler</button>
+        <button class="btn btn-primary" onclick="sauvegarderLicence()">Enregistrer</button>
       </div>
     </div>
   </div>
@@ -91,31 +157,46 @@
   <script src="js/utils.js"></script>
   <script>
     requireAuth();
-    let items = [];
-    let filtered = [];
 
-    async function load() {
+    let licencies = [];
+    let licenciesFiltres = [];
+    let licencesAutorisees = [];
+
+    // ── ONGLETS ────────────────────────────────────────────────────────────
+    function afficherOnglet(nom, btn) {
+      document.getElementById('onglet-comptes').style.display = nom === 'comptes' ? 'block' : 'none';
+      document.getElementById('onglet-licences').style.display = nom === 'licences' ? 'block' : 'none';
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      btn.classList.add('active');
+      if (nom === 'licences') loadLicences();
+    }
+
+    // ── COMPTES LICENCIÉS ──────────────────────────────────────────────────
+    async function loadLicencies() {
       const { data } = await supabaseClient
         .from('profils').select('*').order('nom', { ascending: true });
-      items = data || [];
-      filtered = items;
-      renderTable();
+      licencies = data || [];
+      licenciesFiltres = licencies;
+      renderLicencies();
     }
 
     function filtrerListe() {
       const q = document.getElementById('search').value.toLowerCase();
-      filtered = items.filter(l =>
+      licenciesFiltres = licencies.filter(l =>
         l.nom?.toLowerCase().includes(q) ||
         l.prenom?.toLowerCase().includes(q) ||
         l.numero_licence?.toLowerCase().includes(q)
       );
-      renderTable();
+      renderLicencies();
     }
 
-    function renderTable() {
+    function renderLicencies() {
       const tbody = document.getElementById('tbody-licencies');
-      if (!filtered.length) { tbody.innerHTML = '<tr><td colspan="6" class="empty">Aucun résultat</td></tr>'; return; }
-      tbody.innerHTML = filtered.map(l => `
+      if (!licenciesFiltres.length) {
+        tbody.innerHTML = '<tr><td colspan="6" class="empty">Aucun résultat</td></tr>';
+        return;
+      }
+      tbody.innerHTML = licenciesFiltres.map(l => `
         <tr>
           <td><strong>${escHtml(l.nom || '—')}</strong></td>
           <td>${escHtml(l.prenom || '—')}</td>
@@ -123,7 +204,7 @@
           <td><span class="badge badge-role-${l.fonction}">${l.fonction}</span></td>
           <td><span class="badge ${l.actif ? 'badge-success' : 'badge-gray'}">${l.actif ? 'Actif' : 'Inactif'}</span></td>
           <td class="actions">
-            <button class="btn btn-sm btn-outline" onclick="editer('${l.id}')">✏️ Modifier</button>
+            <button class="btn btn-sm btn-outline" onclick="editerLicencie('${l.id}')">✏️ Modifier</button>
             <button class="btn btn-sm ${l.actif ? 'btn-danger' : 'btn-success'}" onclick="toggleActif('${l.id}', ${l.actif})">
               ${l.actif ? '🚫 Désactiver' : '✅ Activer'}
             </button>
@@ -132,8 +213,8 @@
       `).join('');
     }
 
-    function editer(id) {
-      const l = items.find(x => x.id === id);
+    function editerLicencie(id) {
+      const l = licencies.find(x => x.id === id);
       if (!l) return;
       document.getElementById('edit-id').value = l.id;
       document.getElementById('field-nom').value = l.nom || '';
@@ -141,12 +222,10 @@
       document.getElementById('field-licence').value = l.numero_licence || '';
       document.getElementById('field-fonction').value = l.fonction;
       document.getElementById('field-actif').value = l.actif ? 'true' : 'false';
-      document.getElementById('modal').classList.remove('hidden');
+      document.getElementById('modal-licencie').classList.remove('hidden');
     }
 
-    function fermerModal() { document.getElementById('modal').classList.add('hidden'); }
-
-    async function sauvegarder() {
+    async function sauvegarderLicencie() {
       const id = document.getElementById('edit-id').value;
       const payload = {
         nom: document.getElementById('field-nom').value.trim(),
@@ -158,8 +237,8 @@
       const { error } = await supabaseClient.from('profils').update(payload).eq('id', id);
       if (error) { showToast('Erreur : ' + error.message, 'error'); return; }
       showToast('Licencié modifié !');
-      fermerModal();
-      load();
+      fermerModal('modal-licencie');
+      loadLicencies();
     }
 
     async function toggleActif(id, actuel) {
@@ -167,10 +246,108 @@
       if (!confirm(msg)) return;
       await supabaseClient.from('profils').update({ actif: !actuel }).eq('id', id);
       showToast(actuel ? 'Licencié désactivé' : 'Licencié activé');
-      load();
+      loadLicencies();
     }
 
-    load();
+    // ── LICENCES AUTORISÉES ────────────────────────────────────────────────
+    async function loadLicences() {
+      const { data } = await supabaseClient
+        .from('licences_autorisees')
+        .select('*')
+        .order('created_at', { ascending: false });
+      licencesAutorisees = data || [];
+      renderLicences();
+    }
+
+    function renderLicences() {
+      const tbody = document.getElementById('tbody-licences');
+      if (!licencesAutorisees.length) {
+        tbody.innerHTML = '<tr><td colspan="5" class="empty">Aucune licence autorisée</td></tr>';
+        return;
+      }
+      tbody.innerHTML = licencesAutorisees.map(l => `
+        <tr>
+          <td><strong>${escHtml(l.numero_licence)}</strong></td>
+          <td>${escHtml(l.nom || '—')}</td>
+          <td>${escHtml(l.prenom || '—')}</td>
+          <td>
+            <span class="badge ${l.utilise ? 'badge-success' : 'badge-gray'}">
+              ${l.utilise ? '✅ Compte créé' : '⏳ En attente'}
+            </span>
+          </td>
+          <td class="actions">
+            <button class="btn btn-sm btn-outline" onclick="editerLicence('${l.id}')">✏️</button>
+            <button class="btn btn-sm btn-danger" onclick="supprimerLicence('${l.id}')">🗑</button>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    function ouvrirModalLicence() {
+      document.getElementById('licence-edit-id').value = '';
+      document.getElementById('licence-numero').value = '';
+      document.getElementById('licence-nom').value = '';
+      document.getElementById('licence-prenom').value = '';
+      document.getElementById('modal-licence-title').textContent = 'Ajouter une licence';
+      document.getElementById('modal-licence').classList.remove('hidden');
+    }
+
+    function editerLicence(id) {
+      const l = licencesAutorisees.find(x => x.id === id);
+      if (!l) return;
+      document.getElementById('licence-edit-id').value = l.id;
+      document.getElementById('licence-numero').value = l.numero_licence;
+      document.getElementById('licence-nom').value = l.nom || '';
+      document.getElementById('licence-prenom').value = l.prenom || '';
+      document.getElementById('modal-licence-title').textContent = 'Modifier la licence';
+      document.getElementById('modal-licence').classList.remove('hidden');
+    }
+
+    async function sauvegarderLicence() {
+      const id = document.getElementById('licence-edit-id').value;
+      const numero = document.getElementById('licence-numero').value.trim();
+      const nom = document.getElementById('licence-nom').value.trim();
+      const prenom = document.getElementById('licence-prenom').value.trim();
+
+      if (!numero) { showToast('N° de licence obligatoire', 'error'); return; }
+
+      const payload = { numero_licence: numero, nom, prenom };
+      const { error } = id
+        ? await supabaseClient.from('licences_autorisees').update(payload).eq('id', id)
+        : await supabaseClient.from('licences_autorisees').insert(payload);
+
+      if (error) {
+        if (error.code === '23505') {
+          showToast('Ce numéro de licence existe déjà', 'error');
+        } else {
+          showToast('Erreur : ' + error.message, 'error');
+        }
+        return;
+      }
+      showToast(id ? 'Licence modifiée !' : 'Licence ajoutée !');
+      fermerModal('modal-licence');
+      loadLicences();
+    }
+
+    async function supprimerLicence(id) {
+      const l = licencesAutorisees.find(x => x.id === id);
+      if (l?.utilise) {
+        showToast('Impossible — un compte a déjà été créé avec cette licence', 'error');
+        return;
+      }
+      if (!confirm('Supprimer cette licence autorisée ?')) return;
+      await supabaseClient.from('licences_autorisees').delete().eq('id', id);
+      showToast('Licence supprimée');
+      loadLicences();
+    }
+
+    // ── UTILITAIRES ────────────────────────────────────────────────────────
+    function fermerModal(id) {
+      document.getElementById(id).classList.add('hidden');
+    }
+
+    // Initialisation
+    loadLicencies();
   </script>
 </body>
 </html>
